@@ -1,0 +1,86 @@
+name: Tests + Develocity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Remove old test results
+        run: rm -rf ./TestResults.xcresult
+
+      - name: Run unit tests
+        continue-on-error: true
+        run: |
+          xcodebuild test \
+            -scheme test1 \
+            -destination 'platform=macOS,arch=arm64' \
+            -only-testing:test1Tests \
+            -resultBundlePath ./TestResults.xcresult \
+            2>&1 | tee raw-test.log
+
+      - name: Convert to JUnit XML
+        run: python3 xcresult_to_junit.py test-report.xml
+
+      - name: Gradle import to Develocity
+        env:
+          DEVELOCITY_ACCESS_KEY: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+        run: ./gradlew import
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-report
+          path: test-report.xml
+
+  ui-tests:
+    name: UI Tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Remove old test results
+        run: rm -rf ./TestResults.xcresult
+
+      - name: Run UI tests
+        continue-on-error: true
+        run: |
+          xcodebuild test \
+            -scheme test1 \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -only-testing:test1UITests \
+            -resultBundlePath ./TestResults.xcresult \
+            2>&1 | tee raw-test.log
+
+      - name: Convert to JUnit XML
+        run: python3 xcresult_to_junit.py test-report.xml
+
+      - name: Gradle import to Develocity
+        env:
+          DEVELOCITY_ACCESS_KEY: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+        run: ./gradlew import
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-test-report
+          path: test-report.xml
